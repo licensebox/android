@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">licensebox</string>
+    <string name="channel_requests">Requests</string>
+    <string name="channel_requests_about">When someone asks for modules in one of your products</string>
+</resources>

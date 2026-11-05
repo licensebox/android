@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nothing is backed up: the session token is sealed by a Keystore key that
+     stays on this device, so a restored copy could not be opened anyway. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="."/>
+</full-backup-content>

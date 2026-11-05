@@ -1,0 +1,193 @@
+package dev.licensebox.android.ui
+
+import android.app.Application
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import dev.licensebox.android.api.AdminApi
+import dev.licensebox.android.api.ApiError
+import dev.licensebox.android.data.SessionStore
+import dev.licensebox.android.data.SignedIn
+import dev.licensebox.android.notify.RequestWatch
+import kotlinx.coroutines.launch
+
+enum class Tab(val key: String, val label: String) {
+    Requests("r", "Requests"),
+    Users("u", "Users"),
+    Activity("e", "Activity"),
+    Info("i", "Info"),
+}
+
+sealed interface Screen {
+    data object Products : Screen
+    data class Product(val id: String, val tab: Tab = Tab.Requests) : Screen
+    data class User(val product: String, val email: String) : Screen
+}
+
+class AppModel(app: Application) : AndroidViewModel(app) {
+    val store = SessionStore(app)
+
+    var session by mutableStateOf(store.load())
+        private set
+
+    val stack = mutableStateListOf<Screen>(Screen.Products)
+    val screen get() = stack.last()
+
+    /** A short message for the snackbar, shown once. */
+    var message by mutableStateOf<String?>(null)
+
+    /** Whether the app lock is up, and whether the phone has a lock to ask for. */
+    var locked by mutableStateOf(true)
+    var lockAvailable by mutableStateOf(true)
+
+    /** When the app last went to the background; 0 before it first has. */
+    var awayAt = 0L
+
+    /** Whether the help sheet of shortcuts is open. */
+    var help by mutableStateOf(false)
+
+    val api get() = session.let { AdminApi(it?.server ?: store.server, it?.token) }
+
+    fun open(s: Screen) {
+        stack.add(s)
+    }
+
+    /** Replaces the screen in front, as a product's tab changing. */
+    fun replace(s: Screen) {
+        stack[stack.lastIndex] = s
+    }
+
+    fun back(): Boolean {
+        if (stack.size <= 1) return false
+        stack.removeAt(stack.lastIndex)
+        return true
+    }
+
+    /** Opens a product's requests, as a notification asks. */
+    fun openRequests(product: String) {
+        stack.clear()
+        stack.add(Screen.Products)
+        stack.add(Screen.Product(product, Tab.Requests))
+    }
+
+    fun signedIn(s: SignedIn) {
+        store.save(s)
+        session = s
+        stack.clear()
+        stack.add(Screen.Products)
+        RequestWatch.start(getApplication())
+    }
+
+    fun signOut() {
+        val api = api
+        viewModelScope.launch { runCatching { api.logout() } }
+        endSession()
+    }
+
+    private fun endSession() {
+        store.clear()
+        session = null
+        RequestWatch.stop(getApplication())
+    }
+
+    /** What every failed call does: say so, and sign out if the session went. */
+    fun failed(e: Throwable) {
+        if (e is ApiError && e.signedOut) endSession()
+        message = describe(e)
+    }
+
+    /** Runs a change on the server, saying [done] after, then [after]. */
+    fun change(done: String?, after: () -> Unit = {}, block: suspend AdminApi.() -> Unit) {
+        val api = api
+        viewModelScope.launch {
+            try {
+                api.block()
+                if (done != null) message = done
+                after()
+            } catch (e: Exception) {
+                failed(e)
+            }
+        }
+    }
+}
+
+@Composable
+fun App(model: AppModel) {
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(model.message) {
+        model.message?.let {
+            snackbar.showSnackbar(it)
+            model.message = null
+        }
+    }
+    BackHandler(enabled = model.session != null && model.stack.size > 1) { model.back() }
+    OnShortcut { k ->
+        when {
+            k.name == "h" || k.name == "?" -> { model.help = !model.help; true }
+            k.name == Shortcuts.ESCAPE -> model.help.also { model.help = false } || model.back()
+            else -> false
+        }
+    }
+
+    // On a keyboard, Compose gives focus to the first button or card when a
+    // screen opens, and it sits highlighted. The root takes it instead,
+    // unseen; shortcuts don't need focus, and Tab still moves it on.
+    val rootFocus = remember { FocusRequester() }
+    LaunchedEffect(model.screen, model.locked, model.session) { runCatching { rootFocus.requestFocus() } }
+
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).focusRequester(rootFocus).focusable()) {
+            val session = model.session
+            if (model.locked) {
+                LockScreen(model)
+                return@Box
+            }
+            if (session == null) {
+                SignInScreen(model)
+            } else {
+                AnimatedContent(
+                    model.screen,
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+                    // A product's tabs change within its screen, unanimated.
+                    contentKey = { if (it is Screen.Product) "product:" + it.id else it },
+                    label = "screen",
+                ) { s ->
+                    when (s) {
+                        Screen.Products -> ProductsScreen(model, session)
+                        is Screen.Product -> ProductScreen(model, s)
+                        is Screen.User -> UserScreen(model, s)
+                    }
+                }
+            }
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(8.dp))
+            if (model.help) HelpSheet(model.screen, session != null) { model.help = false }
+        }
+    }
+}

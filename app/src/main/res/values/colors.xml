@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tile">#212529</color>
+    <color name="paper">#F5F5F5</color>
+    <color name="night">#121212</color>
+</resources>
