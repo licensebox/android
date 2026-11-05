@@ -298,3 +298,13 @@ fun Instant.until(now: Instant = Instant.now()): String {
 }
 
 fun plural(n: Int, one: String, many: String = one + "s") = "$n ${if (n == 1) one else many}"
+
+/** Pull to reload, for touch; R does it from the keyboard where it can. */
+@Composable
+fun Refreshable(loader: Loader<*>, content: @Composable () -> Unit) {
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = loader.refreshing && loader.value != null,
+        onRefresh = loader::reload,
+        modifier = Modifier.fillMaxSize(),
+    ) { content() }
+}

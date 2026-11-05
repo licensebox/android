@@ -136,9 +136,18 @@ fun rememberSelection() = remember { Selection() }
 /**
  * The keys common to every list: moving the selection, paging, top and
  * bottom. [count] is how many items can be selected; [offset] is how many
- * list items come before them (headers), for scrolling.
+ * list items come before them (headers), for scrolling, or [itemOf] maps a
+ * selection to its list item where headings come between.
  */
-fun listKeys(k: Shortcuts.Key, sel: Selection, count: Int, state: LazyListState, scope: CoroutineScope, offset: Int = 0): Boolean {
+fun listKeys(
+    k: Shortcuts.Key,
+    sel: Selection,
+    count: Int,
+    state: LazyListState,
+    scope: CoroutineScope,
+    offset: Int = 0,
+    itemOf: ((Int) -> Int)? = null,
+): Boolean {
     fun clamp(i: Int) = i.coerceIn(0, (count - 1).coerceAtLeast(0))
     val page = state.layoutInfo.visibleItemsInfo.size.coerceAtLeast(2) - 1
     val target = when (k.name) {
@@ -167,7 +176,7 @@ fun listKeys(k: Shortcuts.Key, sel: Selection, count: Int, state: LazyListState,
     }
     sel.index = target
     sel.shown = true
-    scope.launch { scrollIntoView(state, target + offset) }
+    scope.launch { scrollIntoView(state, itemOf?.invoke(target) ?: (target + offset)) }
     return true
 }
 

@@ -26,18 +26,22 @@ which `apksigner verify --print-certs licensebox-android-<version>.apk` shows.
 
 ## What it does
 
+A product opens on one page of cards: requests waiting (answer them right there),
+figures, the newest users, recent activity, the modules and how many hold each,
+usage over 30 days, settings, admins and signing keys. Each card leads on to the
+whole list.
+
 - **Requests**: those waiting come first. Approve all the modules asked for or some
   of them, for good or for 30 days, 90 days or a year, with a note to the user; or decline.
 - **Notifications** when someone asks for modules, checked every 15 minutes (Android's
   shortest interval) while online. Tapping one opens that product's requests. Turn
   them off from the ⋯ menu.
-- **Users**: search by email or purpose, see each user's grants and machines, grant
+- **Users**: search by email or purpose, sort by newest, last seen or name, see each user's grants and machines, grant
   modules (to anyone, even before they sign in), take grants back, revoke or restore a
   user or a single machine.
-- **Activity**: a product's latest 200 events.
-- **Info**: figures (users, machines, versions), the modules and what they're for,
-  usage over 30 days, settings, admins (add and remove), and signing keys (tap to copy
-  a public key).
+- **Activity**: a product's latest 200 events, by day, filtered to requests, access,
+  sign-ins or admin work.
+- **Admins**: add and remove them. **Signing keys**: tap one to copy its public key.
 
 Creating products, changing their settings, adding or retiring signing keys,
 deleting products and the operators' allow list stay with the console and the
@@ -64,7 +68,10 @@ Every action has a key, for phones with a built-in keyboard or one plugged in. *
 | --- | --- |
 | Everywhere | **J/K** or **N/P** next and previous, **Space** and **Shift+Space** page down and up, **T** and **B** top and bottom, **Enter** opens, **Esc** goes back |
 | Products | **1–9** open a product, **R** reloads |
-| A product | **R U E I** open Requests, Users, Activity, Info (again to reload), **A**/**D** approve or decline the selected request, **S** or **/** search users, **G** grant |
+| A product | **R U E** open Requests, Users, Activity, **A**/**D** approve or decline the first waiting request, **S** search users, **G** grant, **Enter** opens the selected card |
+| Requests | **A**/**D** approve or decline the selected (or first waiting) request, **Enter** opens its user, **R** reloads |
+| Users | **S** or **/** search, **O** changes the order, **G** grant, **Enter** opens a user, **R** reloads |
+| Activity | **F** changes the filter, **R** reloads |
 | A user | **G** grant, **X** revoke or restore, **Enter** on a grant takes it back, on a machine revokes or restores it |
 | Dialogs | **Enter** confirms, **Esc** cancels, **1–9** tick modules |
 

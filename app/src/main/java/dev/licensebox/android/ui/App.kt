@@ -38,16 +38,14 @@ import dev.licensebox.android.data.SignedIn
 import dev.licensebox.android.notify.RequestWatch
 import kotlinx.coroutines.launch
 
-enum class Tab(val key: String, val label: String) {
-    Requests("r", "Requests"),
-    Users("u", "Users"),
-    Activity("e", "Activity"),
-    Info("i", "Info"),
-}
-
 sealed interface Screen {
     data object Products : Screen
-    data class Product(val id: String, val tab: Tab = Tab.Requests) : Screen
+    /** A product's page of cards. */
+    data class Product(val id: String) : Screen
+    data class Requests(val product: String) : Screen
+    /** A product's users; [search] puts the cursor in the search field. */
+    data class Users(val product: String, val search: Boolean = false) : Screen
+    data class Activity(val product: String) : Screen
     data class User(val product: String, val email: String) : Screen
 }
 
@@ -79,22 +77,17 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         stack.add(s)
     }
 
-    /** Replaces the screen in front, as a product's tab changing. */
-    fun replace(s: Screen) {
-        stack[stack.lastIndex] = s
-    }
-
     fun back(): Boolean {
         if (stack.size <= 1) return false
         stack.removeAt(stack.lastIndex)
         return true
     }
 
-    /** Opens a product's requests, as a notification asks. */
+    /** Opens a product's page, its requests first, as a notification asks. */
     fun openRequests(product: String) {
         stack.clear()
         stack.add(Screen.Products)
-        stack.add(Screen.Product(product, Tab.Requests))
+        stack.add(Screen.Product(product))
     }
 
     fun signedIn(s: SignedIn) {
@@ -172,16 +165,13 @@ fun App(model: AppModel) {
             if (session == null) {
                 SignInScreen(model)
             } else {
-                AnimatedContent(
-                    model.screen,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    // A product's tabs change within its screen, unanimated.
-                    contentKey = { if (it is Screen.Product) "product:" + it.id else it },
-                    label = "screen",
-                ) { s ->
+                AnimatedContent(model.screen, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "screen") { s ->
                     when (s) {
                         Screen.Products -> ProductsScreen(model, session)
                         is Screen.Product -> ProductScreen(model, s)
+                        is Screen.Requests -> RequestsScreen(model, s)
+                        is Screen.Users -> UsersScreen(model, s)
+                        is Screen.Activity -> ActivityScreen(model, s)
                         is Screen.User -> UserScreen(model, s)
                     }
                 }
