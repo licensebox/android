@@ -96,6 +96,11 @@ class AdminApi(server: String, private val token: String?) {
     suspend fun ungrant(product: String, email: String, modules: List<String>) =
         (call("POST", p("products", product, "grants", "remove"), grantBody(email, modules, null, "")) as JSONArray).objects().map(Grant::from)
 
+    /** Sets a user's machine seats: 0 is no limit, null the product's. */
+    suspend fun setSeats(product: String, email: String, limit: Int?) {
+        call("POST", p("products", product, "seats"), seatsBody(email, limit))
+    }
+
     /** Refuses a user's apps, and their signing in again. */
     suspend fun revoke(product: String, email: String, note: String) {
         call("POST", p("products", product, "revoke"), JSONObject().put("email", email).put("note", note))
@@ -120,6 +125,8 @@ class AdminApi(server: String, private val token: String?) {
         put("note", note)
         until?.let { put("until", it.toString()) }
     }
+
+    internal fun seatsBody(email: String, limit: Int?) = JSONObject().put("email", email).put("limit", limit ?: JSONObject.NULL)
 
     private fun grantBody(email: String, modules: List<String>, until: Instant?, note: String) = JSONObject().apply {
         put("email", email)

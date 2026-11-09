@@ -244,5 +244,24 @@ fun GrantDialog(
     }
 }
 
+/** A user's machine seats: a number, 0 for no limit, empty for the product's. */
+@Composable
+fun SeatsDialog(email: String, current: Int?, productLimit: Int, onDismiss: () -> Unit, onSet: (Int?) -> Unit) {
+    var text by remember { mutableStateOf(current?.toString().orEmpty()) }
+    val limit = text.toIntOrNull()
+    val ok = text.isEmpty() || limit != null && limit in 0..100
+    val set = { if (ok) onSet(limit) }
+    val default = if (productLimit == 0) "no limit" else "$productLimit"
+    KeyDialog(title = "Machine seats", confirm = "Save", onConfirm = set, onDismiss = onDismiss, confirmEnabled = ok) {
+        Text("for $email", style = MaterialTheme.typography.titleSmall)
+        OutlinedTextField(
+            value = text, onValueChange = { v -> text = v.filter(Char::isDigit).take(3) }, label = { Text("Seats") }, singleLine = true,
+            placeholder = { Text("Product default ($default)") }, isError = !ok,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth().enterTo(set),
+        )
+        Muted("0 to 100. 0 is no limit; empty uses the product's default ($default).")
+    }
+}
+
 @Composable
 fun DialogLabel(text: String) = Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)

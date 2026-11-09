@@ -57,6 +57,7 @@ private fun forScreen(s: Screen): Pair<String, List<Pair<String, String>>> = whe
         "X" to "revoke, or restore",
         "Enter on a grant" to "take it back",
         "Enter on a machine" to "revoke or restore it",
+        "S" to "set this user's machine seats",
         "R" to "reload",
     )
 }

@@ -72,7 +72,7 @@ Every action has a key, for phones with a built-in keyboard or one plugged in. *
 | Requests | **A**/**D** approve or decline the selected (or first waiting) request, **Enter** opens its user, **R** reloads |
 | Users | **S** or **/** search, **O** changes the order, **G** grant, **Enter** opens a user, **R** reloads |
 | Activity | **F** changes the filter, **R** reloads |
-| A user | **G** grant, **X** revoke or restore, **Enter** on a grant takes it back, on a machine revokes or restores it |
+| A user | **G** grant, **S** machine seats, **X** revoke or restore, **Enter** on a grant takes it back, on a machine revokes or restores it |
 | Dialogs | **Enter** confirms, **Esc** cancels, **1–9** tick modules |
 
 On keyboards where the digits share letter keys (W E R, S D F, Z X C, with Alt),

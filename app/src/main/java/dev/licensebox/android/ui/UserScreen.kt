@@ -2,6 +2,7 @@ package dev.licensebox.android.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -66,6 +67,7 @@ fun UserScreen(model: AppModel, s: Screen.User) {
     var restoring by remember { mutableStateOf(false) }
     var taking by remember { mutableStateOf<Grant?>(null) }
     var machine by remember { mutableStateOf<Machine?>(null) }
+    var seating by remember { mutableStateOf(false) }
 
     val page = loader.value
     val u = page?.user
@@ -82,6 +84,7 @@ fun UserScreen(model: AppModel, s: Screen.User) {
         when (k.name) {
             "r" -> { loader.reload(); true }
             "g" -> { if (page != null) granting = true; true }
+            "s" -> { if (u != null) seating = true; true }
             "x" -> { if (u != null) { if (u.revoked) restoring = true else revoking = true }; true }
             Shortcuts.ENTER -> { rows.getOrNull(sel.index)?.takeIf { sel.shown }?.let(::act); true }
             else -> listKeys(k, sel, rows.size, state, scope, offset = 1)
@@ -94,7 +97,7 @@ fun UserScreen(model: AppModel, s: Screen.User) {
             Loaded(loader) { pg ->
                 Centered {
                     LazyColumn(state = state, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
-                        item { Summary(pg.user, onGrant = { granting = true }, onRevoke = { revoking = true }, onRestore = { restoring = true }) }
+                        item { Summary(pg.user, pg.product.machineLimit, onGrant = { granting = true }, onSeats = { seating = true }, onRevoke = { revoking = true }, onRestore = { restoring = true }) }
                         itemsIndexed(rows) { i, r ->
                             if (i == 0 && r is Row_.G) SectionTitle("Modules granted")
                             if (r is Row_.M && (i == 0 || rows[i - 1] is Row_.G)) SectionTitle("Machines")
@@ -127,6 +130,12 @@ fun UserScreen(model: AppModel, s: Screen.User) {
         ConfirmDialog("Take back ${g.module}?", "${s.email} can no longer run ${g.module}, from their app's next check.", "Take back", onDismiss = { taking = null }) {
             taking = null
             model.change("Took back ${g.module}", after = loader::reload) { ungrant(s.product, s.email, listOf(g.module)) }
+        }
+    }
+    if (seating && p != null && u != null) {
+        SeatsDialog(s.email, u.machineLimit, p.machineLimit, onDismiss = { seating = false }) { limit ->
+            seating = false
+            model.change("Seats changed for ${s.email}", after = loader::reload) { setSeats(s.product, s.email, limit) }
         }
     }
     if (revoking) {
@@ -163,7 +172,7 @@ fun UserScreen(model: AppModel, s: Screen.User) {
 }
 
 @Composable
-private fun Summary(u: User?, onGrant: () -> Unit, onRevoke: () -> Unit, onRestore: () -> Unit) {
+private fun Summary(u: User?, productLimit: Int, onGrant: () -> Unit, onSeats: () -> Unit, onRevoke: () -> Unit, onRestore: () -> Unit) {
     Column(Modifier.padding(top = 4.dp)) {
         if (u == null) {
             Muted("Not signed in yet. Modules granted now are theirs when they do.")
@@ -173,10 +182,13 @@ private fun Summary(u: User?, onGrant: () -> Unit, onRevoke: () -> Unit, onResto
             }
             if (u.purpose.isNotBlank()) Text(u.purpose, style = MaterialTheme.typography.bodyMedium)
             Muted(listOfNotNull(u.created?.let { "Signed up ${it.date()}" }, if (u.terms > 0) "accepted terms v${u.terms}" else null).joinToString(", "))
+            Muted("Machine seats: ${u.seats(productLimit)}")
         }
-        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Wraps: three buttons don't fit across a square screen.
+        FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = onGrant) { Text(withKey("Grant…", "G")) }
             if (u != null) {
+                OutlinedButton(onClick = onSeats) { Text(withKey("Seats…", "S")) }
                 if (u.revoked) OutlinedButton(onClick = onRestore) { Text(withKey("Restore", "X")) }
                 else OutlinedButton(onClick = onRevoke) { Text(withKey("Revoke…", "X"), color = LocalExtra.current.warn) }
             }

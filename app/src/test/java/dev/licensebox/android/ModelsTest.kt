@@ -90,4 +90,16 @@ class ModelsTest {
         assertEquals("120", codeDigits("1 2-0q")) // what isn't a digit goes
         assertEquals("123456", codeDigits("1234567"))
     }
+
+    @Test
+    fun seatsAsTheServerWritesThem() {
+        fun user(field: String) = User.from(JSONObject("""{"user":"u","email":"a@b.c"$field}"""))
+        assertNull(user("").machineLimit) // omitted: the product's
+        assertEquals("2, the product's default", user("").seats(2))
+        assertEquals("no limit, the product's default", user("").seats(0))
+        assertEquals(3, user(""","machine_limit":3""").machineLimit)
+        assertEquals("3, for this user", user(""","machine_limit":3""").seats(1))
+        assertEquals(0, user(""","machine_limit":0""").machineLimit)
+        assertEquals("no limit, for this user", user(""","machine_limit":0""").seats(1))
+    }
 }

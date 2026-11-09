@@ -135,7 +135,16 @@ data class User(
     val note: String,
     val machines: List<Machine>,
     val grants: List<Grant>,
+    /** This user's own machine seats, 0 for no limit; null is the product's. */
+    val machineLimit: Int? = null,
 ) {
+    /** How many seats this user has, in words, given the product's default. */
+    fun seats(productLimit: Int): String = when (machineLimit) {
+        null -> (if (productLimit == 0) "no limit" else "$productLimit") + ", the product's default"
+        0 -> "no limit, for this user"
+        else -> "$machineLimit, for this user"
+    }
+
     companion object {
         fun from(o: JSONObject) = User(
             id = o.optString("user"),
@@ -147,6 +156,7 @@ data class User(
             note = o.optString("note"),
             machines = o.objects("machines").map(Machine::from),
             grants = o.objects("grants").map(Grant::from),
+            machineLimit = if (o.isNull("machine_limit")) null else o.optInt("machine_limit"),
         )
     }
 }
