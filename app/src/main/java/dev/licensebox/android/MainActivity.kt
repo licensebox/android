@@ -1,5 +1,6 @@
 package dev.licensebox.android
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
@@ -60,6 +61,9 @@ class MainActivity : FragmentActivity() {
     // swallowed too.
     private var taken = -1
 
+    // Activity.dispatchKeyEvent is public Android API. Lint objects only
+    // because androidx's ComponentActivity redeclares it as restricted.
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_UP && event.keyCode == taken) {
             taken = -1

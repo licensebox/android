@@ -119,7 +119,7 @@ object RequestWatch {
 
     private fun channel(c: Context) {
         val nm = c.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(CHANNEL) == null) {
+        if (nm.getNotificationChannel(CHANNEL) == null) {
             nm.createNotificationChannel(
                 NotificationChannel(CHANNEL, c.getString(R.string.channel_requests), NotificationManager.IMPORTANCE_DEFAULT)
                     .apply { description = c.getString(R.string.channel_requests_about) },

@@ -2,9 +2,10 @@ package dev.licensebox.android.update
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import androidx.core.content.edit
+import androidx.core.net.toUri
 import dev.licensebox.android.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -91,7 +92,10 @@ class Updater(private val context: Context) {
     /** Asks GitHub; remembers the answer, and when it asked. */
     suspend fun check(): Available? {
         val found = Release.parse(JSONObject(String(fetch(LATEST))), BuildConfig.VERSION_NAME)
-        prefs.edit().putLong("checked", System.currentTimeMillis()).putString("available", found?.toJson()).apply()
+        prefs.edit {
+            putLong("checked", System.currentTimeMillis())
+            putString("available", found?.toJson())
+        }
         return found
     }
 
@@ -125,7 +129,7 @@ class Updater(private val context: Context) {
 
     /** Opens Android's page for allowing installs from this app. */
     fun askToInstall() {
-        context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${context.packageName}".toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     /** Hands [apk] to Android's installer, which asks before installing. */

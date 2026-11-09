@@ -14,10 +14,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.LocalActivity
 import dev.licensebox.android.MainActivity
 import dev.licensebox.android.R
 import dev.licensebox.android.data.AppLock
@@ -28,7 +28,7 @@ import dev.licensebox.android.data.AppLock
  */
 @Composable
 fun LockScreen(model: AppModel) {
-    val activity = LocalContext.current as MainActivity
+    val activity = LocalActivity.current as MainActivity
     val available = model.lockAvailable
     LaunchedEffect(available) { if (available) activity.unlock() }
     OnShortcut { k -> if (k.name == Shortcuts.ENTER) { if (available) activity.unlock() else AppLock.openSettings(activity); true } else false }
