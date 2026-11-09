@@ -7,6 +7,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -15,6 +18,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +41,8 @@ import dev.licensebox.android.api.ApiError
 import dev.licensebox.android.data.SessionStore
 import dev.licensebox.android.data.SignedIn
 import dev.licensebox.android.notify.RequestWatch
+import dev.licensebox.android.update.Available
+import dev.licensebox.android.update.Updater
 import kotlinx.coroutines.launch
 
 sealed interface Screen {
@@ -70,6 +77,46 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     /** Whether the help sheet of shortcuts is open. */
     var help by mutableStateOf(false)
+
+    private val updater = Updater(app)
+
+    /** A newer release, until it is put off; and whether it is downloading. */
+    var update by mutableStateOf(updater.known().takeIf { updater.enabled })
+        private set
+    var updating by mutableStateOf(false)
+        private set
+
+    init {
+        if (updater.due(System.currentTimeMillis())) {
+            // A failed check says nothing: it's tried again next start.
+            viewModelScope.launch { runCatching { updater.check() }.onSuccess { update = it } }
+        }
+    }
+
+    fun putOffUpdate() {
+        update = null
+    }
+
+    /** Downloads the update and offers it to Android's installer. */
+    fun installUpdate() {
+        val a: Available = update ?: return
+        if (updating) return
+        if (!updater.mayInstall()) {
+            message = "Allow installs from this app, then choose Update again"
+            updater.askToInstall()
+            return
+        }
+        updating = true
+        viewModelScope.launch {
+            try {
+                updater.install(updater.download(a))
+            } catch (e: Exception) {
+                message = "Update failed: ${e.message ?: "try again later"}"
+            } finally {
+                updating = false
+            }
+        }
+    }
 
     val api get() = session.let { AdminApi(it?.server ?: store.server, it?.token) }
 
@@ -144,6 +191,7 @@ fun App(model: AppModel) {
     OnShortcut { k ->
         when {
             k.name == "h" || k.name == "?" -> { model.help = !model.help; true }
+            k.name == "i" && model.update != null && !model.locked -> { model.installUpdate(); true }
             k.name == Shortcuts.ESCAPE -> model.help.also { model.help = false } || model.back()
             else -> false
         }
@@ -165,19 +213,36 @@ fun App(model: AppModel) {
             if (session == null) {
                 SignInScreen(model)
             } else {
-                AnimatedContent(model.screen, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "screen") { s ->
-                    when (s) {
-                        Screen.Products -> ProductsScreen(model, session)
-                        is Screen.Product -> ProductScreen(model, s)
-                        is Screen.Requests -> RequestsScreen(model, s)
-                        is Screen.Users -> UsersScreen(model, s)
-                        is Screen.Activity -> ActivityScreen(model, s)
-                        is Screen.User -> UserScreen(model, s)
+                Column(Modifier.fillMaxSize()) {
+                    model.update?.let { UpdateBanner(it, model) }
+                    AnimatedContent(model.screen, Modifier.weight(1f), transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "screen") { s ->
+                        when (s) {
+                            Screen.Products -> ProductsScreen(model, session)
+                            is Screen.Product -> ProductScreen(model, s)
+                            is Screen.Requests -> RequestsScreen(model, s)
+                            is Screen.Users -> UsersScreen(model, s)
+                            is Screen.Activity -> ActivityScreen(model, s)
+                            is Screen.User -> UserScreen(model, s)
+                        }
                     }
                 }
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(8.dp))
             if (model.help) HelpSheet(model.screen, session != null) { model.help = false }
+        }
+    }
+}
+
+@Composable
+private fun UpdateBanner(a: Available, model: AppModel) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (model.updating) "Downloading ${a.version}…" else "Version ${a.version} is available",
+            style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f),
+        )
+        if (!model.updating) {
+            TextButton(onClick = model::putOffUpdate) { Text("Later") }
+            TextButton(onClick = model::installUpdate) { Text(withKey("Update", "I")) }
         }
     }
 }

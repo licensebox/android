@@ -25,6 +25,7 @@ private val everywhere = listOf(
     "T, B" to "top, bottom",
     "Enter" to "open what's selected",
     "H  or  ?" to "these shortcuts",
+    "I" to "install the update, when one is offered",
 )
 
 private fun forScreen(s: Screen): Pair<String, List<Pair<String, String>>> = when (s) {

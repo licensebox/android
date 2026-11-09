@@ -14,7 +14,10 @@ keyboard and a square screen: every action has a key, and no arrow keys are need
 Download `licensebox-android-<version>.apk` from the
 [latest release](https://github.com/licensebox/android/releases/latest) on the phone
 and open it (Android asks once to allow installs from your browser or file manager).
-Later releases install over it.
+Later releases install over it. From 0.3.0 the app checks this repository's
+releases once a day and offers newer ones: it downloads the app, checks it
+against the release's `SHA256SUMS`, and hands it to Android, which asks before
+installing and refuses one signed with another key.
 
 Every release is signed with the same key. Its certificate's SHA-256 is
 
