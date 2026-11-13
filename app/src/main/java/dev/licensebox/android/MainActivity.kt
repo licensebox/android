@@ -33,6 +33,7 @@ class MainActivity : FragmentActivity() {
         model.lockAvailable = AppLock.available(this)
         val away = model.awayAt
         if (away == 0L || System.currentTimeMillis() - away > AppLock.GRACE_MILLIS) model.locked = true
+        model.checkForUpdate()
     }
 
     override fun onStop() {

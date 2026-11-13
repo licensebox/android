@@ -150,6 +150,7 @@ private fun Menu(model: AppModel) {
                     open = false
                 },
             )
+            DropdownMenuItem(text = { Text("Check for updates") }, onClick = { open = false; model.checkForUpdate(tell = true) })
             DropdownMenuItem(text = { Text("Keyboard shortcuts") }, onClick = { model.help = true; open = false })
             DropdownMenuItem(text = { Text("Sign out") }, onClick = { open = false; model.signOut() })
         }

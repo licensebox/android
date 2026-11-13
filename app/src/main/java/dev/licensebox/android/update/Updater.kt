@@ -87,8 +87,6 @@ class Updater(private val context: Context) {
     /** Debug builds are signed differently, so a release can't replace them. */
     val enabled get() = !BuildConfig.DEBUG
 
-    fun due(now: Long) = enabled && now - prefs.getLong("checked", 0) >= DAY_MILLIS
-
     /** Asks GitHub; remembers the answer, and when it asked. */
     suspend fun check(): Available? {
         val found = Release.parse(JSONObject(String(fetch(LATEST))), BuildConfig.VERSION_NAME)
@@ -161,6 +159,5 @@ class Updater(private val context: Context) {
 
     private companion object {
         const val LATEST = "https://api.github.com/repos/licensebox/android/releases/latest"
-        const val DAY_MILLIS = 24 * 60 * 60 * 1000L
     }
 }

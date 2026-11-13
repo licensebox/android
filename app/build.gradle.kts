@@ -22,8 +22,8 @@ android {
         // Android 8, so that older phones still in use get the same app.
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.4.1"
     }
 
     signingConfigs {

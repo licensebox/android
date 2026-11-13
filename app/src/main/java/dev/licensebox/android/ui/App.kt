@@ -88,10 +88,32 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var updating by mutableStateOf(false)
         private set
 
-    init {
-        if (updater.due(System.currentTimeMillis())) {
-            // A failed check says nothing: it's tried again next start.
-            viewModelScope.launch { runCatching { updater.check() }.onSuccess { update = it } }
+    private var checking = false
+
+    /**
+     * Asks GitHub for a newer release: each time the app comes to the
+     * front, and from the menu. GitHub allows 60 such unauthenticated
+     * requests an hour from one address, far more than a person opens an
+     * app. A failed check says nothing unless asked for ([tell]); it's
+     * tried again next time.
+     */
+    fun checkForUpdate(tell: Boolean = false) {
+        if (!updater.enabled) {
+            if (tell) message = "Debug builds don't update themselves"
+            return
+        }
+        if (checking) return
+        checking = true
+        viewModelScope.launch {
+            try {
+                val found = updater.check()
+                update = found
+                if (tell && found == null) message = "This is the latest version"
+            } catch (e: Exception) {
+                if (tell) message = "Couldn't check for updates: ${e.message ?: "try again later"}"
+            } finally {
+                checking = false
+            }
         }
     }
 
