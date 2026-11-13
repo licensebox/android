@@ -44,12 +44,17 @@ import kotlinx.coroutines.coroutineScope
 /** A product, with what the home page shows of it. */
 data class ProductCard(val product: Product, val waiting: Int?, val stats: Stats?)
 
+/** The home page: the products, and for operators the requests to join waiting. */
+data class ProductsPage(val cards: List<ProductCard>, val joins: Int?)
+
 @Composable
 fun ProductsScreen(model: AppModel, session: SignedIn) {
     val loader = rememberLoader(session) {
         val api = model.api
         coroutineScope {
-            api.products().sortedBy { it.title.lowercase() }.map { p ->
+            // For operators, the requests to create products waiting.
+            val joins = async { runCatching { if (api.me().operator) api.joins("pending").size else null }.getOrNull() }
+            val cards = api.products().sortedBy { it.title.lowercase() }.map { p ->
                 async {
                     // A product's figures failing should not hide the product.
                     val waiting = async { runCatching { api.requests(p.id, "pending").size }.getOrNull() }
@@ -57,17 +62,19 @@ fun ProductsScreen(model: AppModel, session: SignedIn) {
                     ProductCard(p, waiting.await(), stats.await())
                 }
             }.awaitAll()
+            ProductsPage(cards, joins.await())
         }
     }
     loader.Run(model::failed)
     val state = rememberLazyListState()
     val sel = rememberSelection()
     val scope = rememberCoroutineScope()
-    val cards = loader.value.orEmpty()
+    val cards = loader.value?.cards.orEmpty()
 
     OnShortcut { k ->
         when (k.name) {
             "r" -> { loader.reload(); true }
+            "0" -> { loader.value?.joins?.let { model.open(Screen.Joins) }; true }
             Shortcuts.ENTER, "o" -> {
                 cards.getOrNull(sel.index)?.takeIf { sel.shown }?.let { model.open(Screen.Product(it.product.id)) }
                 true
@@ -87,15 +94,17 @@ fun ProductsScreen(model: AppModel, session: SignedIn) {
             Menu(model)
         }
         PullToRefreshBox(isRefreshing = loader.refreshing && loader.value != null, onRefresh = loader::reload, modifier = Modifier.fillMaxSize()) {
-            Loaded(loader) { list ->
+            Loaded(loader) { page ->
+                val list = page.cards
                 Centered {
-                    if (list.isEmpty()) {
+                    if (list.isEmpty() && page.joins == null) {
                         Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("No products yet", style = MaterialTheme.typography.titleMedium)
                             Muted("You aren't an admin of any product. Create one at licensebox.dev/admin or with `licensebox create`, or ask a product's admin to add you.")
                         }
                     }
                     LazyColumn(state = state, contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        page.joins?.let { n -> item(key = "joins") { JoinsRow(n, hasKeyboard()) { model.open(Screen.Joins) } } }
                         itemsIndexed(list, key = { _, c -> c.product.id }) { i, c ->
                             ProductRow(c, i, sel.isSelected(i), hasKeyboard()) { model.open(Screen.Product(c.product.id)) }
                         }
@@ -125,6 +134,20 @@ private fun ProductRow(c: ProductCard, index: Int, selected: Boolean, keys: Bool
             Small(c.stats?.users?.let { plural(it, "user") } ?: "–")
             Small(c.stats?.active?.let { "$it active " + if (it == 1) "machine" else "machines" } ?: "–")
             Small(plural(p.modules.size, "module"))
+        }
+    }
+}
+
+/** For operators: the requests to create products, from licensebox.dev/join. */
+@Composable
+private fun JoinsRow(waiting: Int, keys: Boolean, onOpen: () -> Unit) {
+    Card(onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Requests to create products", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Muted((if (waiting == 0) "None waiting" else "From licensebox.dev/join") + if (keys) "  ·  key 0" else "")
+            }
+            if (waiting > 0) Badge("$waiting waiting")
         }
     }
 }

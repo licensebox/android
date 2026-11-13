@@ -2,6 +2,7 @@ package dev.licensebox.android
 
 import dev.licensebox.android.api.AdminApi
 import dev.licensebox.android.api.Customer
+import dev.licensebox.android.api.Join
 import dev.licensebox.android.api.formatCounts
 import dev.licensebox.android.api.parseCounts
 import dev.licensebox.android.api.Product
@@ -148,5 +149,20 @@ class ModelsTest {
     fun customerBodyNamesItsPools() {
         val b = AdminApi("", null).customerBody("acme", "Acme", "", mapOf("sim" to 0))
         assertEquals(0, b.getJSONObject("pools").getInt("sim"))
+    }
+
+    @Test
+    fun joinAsTheServerWritesIt() {
+        // A pending request: no answer yet, so no answered time at all.
+        val j = Join.from(
+            JSONObject(
+                """{"email":"bo@example.org","name":"Bo","about":"A slicer","website":"https://example.org",
+                "created":"2026-11-13T19:58:00Z","status":"pending"}""",
+            ),
+        )
+        assertEquals("bo@example.org", j.email)
+        assertEquals("pending", j.status)
+        assertEquals("", j.answer)
+        assertEquals(null, j.answered)
     }
 }

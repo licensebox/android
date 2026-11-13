@@ -50,8 +50,12 @@ class MainActivity : FragmentActivity() {
         handle(intent)
     }
 
-    /** A notification's tap: open the product's requests. */
+    /** A notification's tap: open the product's requests, or the requests to join. */
     private fun handle(intent: Intent?) {
+        if (intent?.getBooleanExtra(RequestWatch.EXTRA_JOINS, false) == true) {
+            if (model.session != null) model.openJoins()
+            return
+        }
         val product = intent?.getStringExtra(RequestWatch.EXTRA_PRODUCT) ?: return
         if (model.session != null) model.openRequests(product)
     }

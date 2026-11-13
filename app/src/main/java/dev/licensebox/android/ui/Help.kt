@@ -29,7 +29,11 @@ private val everywhere = listOf(
 )
 
 private fun forScreen(s: Screen): Pair<String, List<Pair<String, String>>> = when (s) {
-    Screen.Products -> "Products" to listOf("1 – 9" to "open that product", "R" to "reload")
+    Screen.Products -> "Products" to listOf("1 – 9" to "open that product", "0" to "requests to create products (operators)", "R" to "reload")
+    Screen.Joins -> "Requests to create products" to listOf(
+        "A, D" to "approve, decline the selected request (or the first)",
+        "R" to "reload",
+    )
     is Screen.Product -> "A product" to listOf(
         "R  U  E  C" to "all requests, users, activity, customers",
         "A, D" to "approve, decline the first request waiting",

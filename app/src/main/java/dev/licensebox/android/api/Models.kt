@@ -309,6 +309,37 @@ fun formatCounts(m: Map<String, Int>) = m.entries.sortedBy { it.key }.joinToStri
 
 data class Me(val email: String, val operator: Boolean, val mayCreate: Boolean)
 
+/**
+ * Someone's request to create products, made on licensebox.dev/join with
+ * their address confirmed by email. Operators answer these.
+ */
+data class Join(
+    val email: String,
+    val name: String,
+    val about: String,
+    val website: String,
+    val created: Instant?,
+    /** "pending", "approved" or "declined". */
+    val status: String,
+    val answer: String,
+    val answeredBy: String,
+    val answered: Instant?,
+) {
+    companion object {
+        fun from(o: JSONObject) = Join(
+            email = o.optString("email"),
+            name = o.optString("name"),
+            about = o.optString("about"),
+            website = o.optString("website"),
+            created = o.time("created"),
+            status = o.optString("status"),
+            answer = o.optString("answer"),
+            answeredBy = o.optString("answered_by"),
+            answered = o.time("answered"),
+        )
+    }
+}
+
 data class Session(val token: String, val email: String, val expires: Instant?)
 
 // JSON helpers.

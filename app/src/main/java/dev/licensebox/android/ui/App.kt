@@ -56,6 +56,8 @@ sealed interface Screen {
     data class User(val product: String, val email: String) : Screen
     data class Customers(val product: String) : Screen
     data class Customer(val product: String, val id: String) : Screen
+    /** Requests to create products: operators only. */
+    data object Joins : Screen
 }
 
 class AppModel(app: Application) : AndroidViewModel(app) {
@@ -155,6 +157,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Opens a product's page, its requests first, as a notification asks. */
+    fun openJoins() {
+        stack.clear()
+        stack.add(Screen.Products)
+        stack.add(Screen.Joins)
+    }
+
     fun openRequests(product: String) {
         stack.clear()
         stack.add(Screen.Products)
@@ -249,6 +257,7 @@ fun App(model: AppModel) {
                             is Screen.User -> UserScreen(model, s)
                             is Screen.Customers -> CustomersScreen(model, s)
                             is Screen.Customer -> CustomerScreen(model, s)
+                            Screen.Joins -> JoinsScreen(model)
                         }
                     }
                 }

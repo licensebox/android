@@ -81,6 +81,18 @@ class AdminApi(server: String, private val token: String?) {
     suspend fun decline(product: String, id: String, note: String) =
         Request.from(call("POST", p("products", product, "requests", id, "decline"), answer(emptyList(), null, note)) as JSONObject)
 
+    // Requests to create products: operators only.
+
+    /** Requests to create products, newest first, of the status given or all. */
+    suspend fun joins(status: String = "") = list("GET", "joins?status=" + q(status)).map(Join::from)
+
+    /** Lets the address create products; they are emailed, with the note. */
+    suspend fun approveJoin(email: String, note: String) =
+        Join.from(call("POST", p("joins", email, "approve"), JSONObject().put("note", note)) as JSONObject)
+
+    suspend fun declineJoin(email: String, note: String) =
+        Join.from(call("POST", p("joins", email, "decline"), JSONObject().put("note", note)) as JSONObject)
+
     // Users.
 
     /** The product's users, those whose email or purpose contains [query]. */

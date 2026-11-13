@@ -23,6 +23,7 @@ import dev.licensebox.android.MainActivity
 import dev.licensebox.android.R
 import dev.licensebox.android.api.AdminApi
 import dev.licensebox.android.api.ApiError
+import dev.licensebox.android.api.Join
 import dev.licensebox.android.api.Request
 import dev.licensebox.android.data.SessionStore
 import java.util.concurrent.TimeUnit
@@ -34,10 +35,13 @@ import java.util.concurrent.TimeUnit
  */
 object RequestWatch {
     const val EXTRA_PRODUCT = "product"
+    /** A notification's tap that opens the requests to create products. */
+    const val EXTRA_JOINS = "joins"
     private const val WORK = "request-watch"
     private const val CHANNEL = "requests"
     private const val GROUP = "requests"
     private const val SUMMARY_ID = 1
+    private const val JOINS_ID = 3
 
     private fun prefs(c: Context) = c.getSharedPreferences("watch", Context.MODE_PRIVATE)
 
@@ -79,8 +83,16 @@ object RequestWatch {
         if (left < 2) nm.cancel(SUMMARY_ID)
     }
 
-    /** A product's notification id: never the summary's. */
-    private fun idOf(product: String) = product.hashCode().let { if (it == SUMMARY_ID) 2 else it }
+    /** Requests to create products seen in the app need no notification. */
+    fun seenJoins(c: Context, joins: List<Join>) {
+        val ids = joins.filter { it.status == "pending" }.map { "join:${it.email}" }
+        val p = prefs(c)
+        p.edit { putStringSet("seen", p.getStringSet("seen", emptySet())!! + ids) }
+        NotificationManagerCompat.from(c).cancel(JOINS_ID)
+    }
+
+    /** A product's notification id: never the summary's or the joins'. */
+    private fun idOf(product: String) = product.hashCode().let { if (it == SUMMARY_ID || it == JOINS_ID) 2 else it }
 
     class Worker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
         override suspend fun doWork(): Result {
@@ -101,6 +113,16 @@ object RequestWatch {
                     if (fresh.isNotEmpty()) {
                         notify(c, p.id, p.title, fresh, waiting.size)
                         told += "${p.title}: ${fresh.size} new"
+                    }
+                }
+                // Operators hear of requests to create products too.
+                if (api.me().operator) {
+                    val waiting = api.joins("pending")
+                    pending += waiting.map { "join:${it.email}" }
+                    val fresh = waiting.filter { "join:${it.email}" !in seen }
+                    if (fresh.isNotEmpty()) {
+                        notifyJoins(c, fresh, waiting.size)
+                        told += "Create products: ${fresh.size} new"
                     }
                 }
                 summarize(c, told)
@@ -188,6 +210,40 @@ object RequestWatch {
             NotificationManagerCompat.from(c).notify(idOf(product), n)
         } catch (_: SecurityException) {
             // Leave to notify was taken back between the check and now.
+        }
+    }
+
+    private fun notifyJoins(c: Context, fresh: List<Join>, waiting: Int) {
+        channel(c)
+        val open = PendingIntent.getActivity(
+            c, JOINS_ID,
+            Intent(c, MainActivity::class.java).putExtra(EXTRA_JOINS, true)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val first = fresh.first()
+        val title = if (fresh.size == 1) "${first.name.ifBlank { first.email }} asks to create products"
+        else "${fresh.size} new requests to create products"
+        val text = if (fresh.size == 1) first.email + if (first.about.isNotBlank()) ": “${first.about}”" else ""
+        else fresh.joinToString(", ") { it.email }
+        val style = NotificationCompat.InboxStyle().also { s ->
+            fresh.take(6).forEach { s.addLine("${it.email}: ${it.about.take(60)}") }
+            if (waiting > fresh.size) s.setSummaryText("$waiting waiting")
+        }
+        val n = NotificationCompat.Builder(c, CHANNEL)
+            .setSmallIcon(R.drawable.ic_notify)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(if (fresh.size == 1) NotificationCompat.BigTextStyle().bigText(text) else style)
+            .setNumber(waiting)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .setGroup(GROUP)
+            .setCategory(NotificationCompat.CATEGORY_EMAIL)
+            .build()
+        try {
+            NotificationManagerCompat.from(c).notify(JOINS_ID, n)
+        } catch (_: SecurityException) {
         }
     }
 }
