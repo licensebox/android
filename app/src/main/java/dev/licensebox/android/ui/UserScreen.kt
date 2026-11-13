@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.licensebox.android.api.ApiError
+import dev.licensebox.android.api.EnrolToken
 import dev.licensebox.android.api.Grant
 import dev.licensebox.android.api.Machine
 import dev.licensebox.android.api.Product
@@ -68,6 +69,9 @@ fun UserScreen(model: AppModel, s: Screen.User) {
     var taking by remember { mutableStateOf<Grant?>(null) }
     var machine by remember { mutableStateOf<Machine?>(null) }
     var seating by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf(false) }
+    var issuing by remember { mutableStateOf(false) }
+    var token by remember { mutableStateOf<EnrolToken?>(null) }
 
     val page = loader.value
     val u = page?.user
@@ -84,7 +88,9 @@ fun UserScreen(model: AppModel, s: Screen.User) {
         when (k.name) {
             "r" -> { loader.reload(); true }
             "g" -> { if (page != null) granting = true; true }
-            "s" -> { if (u != null) seating = true; true }
+            "s" -> { if (u != null && !u.service) seating = true; true }
+            "c" -> { if (u != null) moving = true; true }
+            "t" -> { if (u?.service == true) issuing = true; true }
             "x" -> { if (u != null) { if (u.revoked) restoring = true else revoking = true }; true }
             Shortcuts.ENTER -> { rows.getOrNull(sel.index)?.takeIf { sel.shown }?.let(::act); true }
             else -> listKeys(k, sel, rows.size, state, scope, offset = 1)
@@ -97,7 +103,12 @@ fun UserScreen(model: AppModel, s: Screen.User) {
             Loaded(loader) { pg ->
                 Centered {
                     LazyColumn(state = state, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
-                        item { Summary(pg.user, pg.product.machineLimit, onGrant = { granting = true }, onSeats = { seating = true }, onRevoke = { revoking = true }, onRestore = { restoring = true }) }
+                        item {
+                            Summary(
+                                pg.user, pg.product.machineLimit, onGrant = { granting = true }, onSeats = { seating = true }, onRevoke = { revoking = true }, onRestore = { restoring = true },
+                                onCustomer = { moving = true }, onToken = { issuing = true }, onOpenCustomer = { c -> model.open(Screen.Customer(s.product, c)) },
+                            )
+                        }
                         itemsIndexed(rows) { i, r ->
                             if (i == 0 && r is Row_.G) SectionTitle("Modules granted")
                             if (r is Row_.M && (i == 0 || rows[i - 1] is Row_.G)) SectionTitle("Machines")
@@ -138,6 +149,26 @@ fun UserScreen(model: AppModel, s: Screen.User) {
             model.change("Seats changed for ${s.email}", after = loader::reload) { setSeats(s.product, s.email, limit) }
         }
     }
+    if (moving && u != null) {
+        TextDialog(
+            if (u.customer.isBlank()) "Add ${s.email} to a customer" else "Move ${s.email}", "Customer id",
+            "They share the customer's floating copies. Leave it empty to take them out of ${u.customer.ifBlank { "any" }}.",
+            "Save", androidx.compose.ui.text.input.KeyboardType.Ascii, { it.isEmpty() || Regex("^[a-z0-9][a-z0-9-]{0,39}$").matches(it) }, { moving = false },
+        ) { c ->
+            moving = false
+            model.change(if (c.isEmpty()) "Out of ${u.customer}" else "In $c", after = loader::reload) { setCustomer(s.product, s.email, c) }
+        }
+    }
+    if (issuing) {
+        ConfirmDialog(
+            "Issue an enrolment token?", "It enrols one machine for ${s.email}, once, within a week. The machine it enrols replaces the one before.",
+            "Issue", destructive = false, onDismiss = { issuing = false },
+        ) {
+            issuing = false
+            model.change(null, after = loader::reload) { token = serviceToken(s.product, s.email) }
+        }
+    }
+    token?.let { TokenDialog(it, model) { token = null } }
     if (revoking) {
         NoteDialog(
             "Revoke ${s.email}?", "Their apps are refused from their next check, and they can't sign in again until restored.",
@@ -172,7 +203,10 @@ fun UserScreen(model: AppModel, s: Screen.User) {
 }
 
 @Composable
-private fun Summary(u: User?, productLimit: Int, onGrant: () -> Unit, onSeats: () -> Unit, onRevoke: () -> Unit, onRestore: () -> Unit) {
+private fun Summary(
+    u: User?, productLimit: Int, onGrant: () -> Unit, onSeats: () -> Unit, onRevoke: () -> Unit, onRestore: () -> Unit,
+    onCustomer: () -> Unit, onToken: () -> Unit, onOpenCustomer: (String) -> Unit,
+) {
     Column(Modifier.padding(top = 4.dp)) {
         if (u == null) {
             Muted("Not signed in yet. Modules granted now are theirs when they do.")
@@ -182,13 +216,19 @@ private fun Summary(u: User?, productLimit: Int, onGrant: () -> Unit, onSeats: (
             }
             if (u.purpose.isNotBlank()) Text(u.purpose, style = MaterialTheme.typography.bodyMedium)
             Muted(listOfNotNull(u.created?.let { "Signed up ${it.date()}" }, if (u.terms > 0) "accepted terms v${u.terms}" else null).joinToString(", "))
-            Muted("Machine seats: ${u.seats(productLimit)}")
+            if (u.service) Muted("Service account: one machine, enrolled with a one-time token")
+            else Muted("Machine seats: ${u.seats(productLimit)}")
+            if (u.customer.isNotBlank()) {
+                androidx.compose.material3.TextButton(onClick = { onOpenCustomer(u.customer) }, contentPadding = PaddingValues(0.dp)) { Text("Customer: ${u.customer}  ›") }
+            }
         }
         // Wraps: three buttons don't fit across a square screen.
         FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = onGrant) { Text(withKey("Grant…", "G")) }
             if (u != null) {
-                OutlinedButton(onClick = onSeats) { Text(withKey("Seats…", "S")) }
+                if (u.service) OutlinedButton(onClick = onToken) { Text(withKey("Token…", "T")) }
+                else OutlinedButton(onClick = onSeats) { Text(withKey("Seats…", "S")) }
+                OutlinedButton(onClick = onCustomer) { Text(withKey("Customer…", "C")) }
                 if (u.revoked) OutlinedButton(onClick = onRestore) { Text(withKey("Restore", "X")) }
                 else OutlinedButton(onClick = onRevoke) { Text(withKey("Revoke…", "X"), color = LocalExtra.current.warn) }
             }
@@ -232,6 +272,7 @@ private fun MachineRow(m: Machine, selected: Boolean, onClick: () -> Unit) {
                 m.last?.let { "last seen ${it.ago()}" },
                 m.first?.let { "first ${it.date()}" },
                 if (m.allocated) "holds a seat" else null,
+                m.seatedModules.takeIf { it.isNotEmpty() }?.let { "seats of ${it.joinToString(", ")}" },
             ).joinToString("  ·  "),
         )
     }

@@ -54,6 +54,8 @@ sealed interface Screen {
     data class Users(val product: String, val search: Boolean = false) : Screen
     data class Activity(val product: String) : Screen
     data class User(val product: String, val email: String) : Screen
+    data class Customers(val product: String) : Screen
+    data class Customer(val product: String, val id: String) : Screen
 }
 
 class AppModel(app: Application) : AndroidViewModel(app) {
@@ -223,6 +225,8 @@ fun App(model: AppModel) {
                             is Screen.Users -> UsersScreen(model, s)
                             is Screen.Activity -> ActivityScreen(model, s)
                             is Screen.User -> UserScreen(model, s)
+                            is Screen.Customers -> CustomersScreen(model, s)
+                            is Screen.Customer -> CustomerScreen(model, s)
                         }
                     }
                 }

@@ -118,7 +118,44 @@ class AdminApi(server: String, private val token: String?) {
         call("POST", p("products", product, "restore"), JSONObject().put("machine", machine))
     }
 
+    // Customers, floating copies and service accounts.
+
+    suspend fun customers(product: String) = list("GET", p("products", product, "customers")).map(Customer::from)
+
+    suspend fun customer(product: String, id: String) = Customer.from(call("GET", p("products", product, "customers", id)) as JSONObject)
+
+    /** Adds a customer; [pools] are its floating copies by module. */
+    suspend fun addCustomer(product: String, id: String, name: String, note: String, pools: Map<String, Int>) =
+        Customer.from(call("POST", p("products", product, "customers"), customerBody(id, name, note, pools)) as JSONObject)
+
+    /** Changes a customer; a pool set to 0 is taken away. */
+    suspend fun updateCustomer(product: String, id: String, name: String, note: String, pools: Map<String, Int>) =
+        Customer.from(call("PUT", p("products", product, "customers", id), customerBody(id, name, note, pools)) as JSONObject)
+
+    /** Moves a user into a customer, or out of any with "". */
+    suspend fun setCustomer(product: String, email: String, customer: String) {
+        call("POST", p("products", product, "customer"), JSONObject().put("email", email).put("customer", customer))
+    }
+
+    /** Adds a service account, for a customer's server or build machine. */
+    suspend fun addService(product: String, customer: String, name: String) =
+        User.from(call("POST", p("products", product, "services"), JSONObject().put("customer", customer).put("name", name)) as JSONObject)
+
+    /** Issues a one-time token that enrols a service account's machine. */
+    suspend fun serviceToken(product: String, name: String) =
+        EnrolToken.from(call("POST", p("products", product, "services", name, "token")) as JSONObject)
+
+    suspend fun checkouts(product: String) = list("GET", p("products", product, "checkouts")).map(Checkout::from)
+
+    /** Frees a floating copy, for another machine to check out. */
+    suspend fun freeCheckout(product: String, id: String) {
+        call("DELETE", p("products", product, "checkouts", id))
+    }
+
     // Plumbing.
+
+    internal fun customerBody(id: String, name: String, note: String, pools: Map<String, Int>) =
+        JSONObject().put("id", id).put("name", name).put("note", note).put("pools", JSONObject(pools as Map<*, *>))
 
     private fun answer(modules: List<String>, until: Instant?, note: String) = JSONObject().apply {
         put("modules", JSONArray(modules))

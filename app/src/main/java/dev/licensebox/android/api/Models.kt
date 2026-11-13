@@ -26,7 +26,14 @@ data class Product(
     val admins: List<String>,
     val created: Instant?,
     val deleteAt: Instant?,
+    /** Seats per user of modules counted apart from the product's. */
+    val moduleSeats: Map<String, Int> = emptyMap(),
+    /** The heartbeat's interval and grace in seconds; 0 when it is off. */
+    val heartbeatInterval: Int = 0,
+    val heartbeatGrace: Int = 0,
 ) {
+    val heartbeat get() = heartbeatInterval > 0 && heartbeatGrace > 0
+
     val title get() = name.ifBlank { id }
 
     /** How a module is offered: "free", "trial" or "hidden", or null. */
@@ -58,6 +65,9 @@ data class Product(
             admins = o.strings("admins"),
             created = o.time("created"),
             deleteAt = o.time("delete_at"),
+            moduleSeats = o.counts("module_seats"),
+            heartbeatInterval = o.optJSONObject("heartbeat")?.optInt("interval_seconds") ?: 0,
+            heartbeatGrace = o.optJSONObject("heartbeat")?.optInt("grace_seconds") ?: 0,
         )
     }
 }
@@ -110,6 +120,8 @@ data class Machine(
     val last: Instant?,
     val revoked: Boolean,
     val allocated: Boolean,
+    /** The modules counted apart whose seats this machine holds. */
+    val seatedModules: List<String> = emptyList(),
 ) {
     companion object {
         fun from(o: JSONObject) = Machine(
@@ -121,6 +133,7 @@ data class Machine(
             last = o.time("last"),
             revoked = o.optBoolean("revoked"),
             allocated = o.optBoolean("allocated"),
+            seatedModules = o.strings("seated_modules"),
         )
     }
 }
@@ -137,6 +150,10 @@ data class User(
     val grants: List<Grant>,
     /** This user's own machine seats, 0 for no limit; null is the product's. */
     val machineLimit: Int? = null,
+    /** The customer (organisation) the user belongs to, if any. */
+    val customer: String = "",
+    /** A service account, which [email] then names by its name. */
+    val service: Boolean = false,
 ) {
     /** How many seats this user has, in words, given the product's default. */
     fun seats(productLimit: Int): String = when (machineLimit) {
@@ -148,7 +165,8 @@ data class User(
     companion object {
         fun from(o: JSONObject) = User(
             id = o.optString("user"),
-            email = o.optString("email"),
+            // Admin calls take a service account's name where an email goes.
+            email = if (o.optBoolean("service")) o.optString("name") else o.optString("email"),
             created = o.time("created"),
             purpose = o.optString("purpose"),
             terms = o.optInt("terms"),
@@ -157,6 +175,8 @@ data class User(
             machines = o.objects("machines").map(Machine::from),
             grants = o.objects("grants").map(Grant::from),
             machineLimit = if (o.isNull("machine_limit")) null else o.optInt("machine_limit"),
+            customer = o.optString("customer"),
+            service = o.optBoolean("service"),
         )
     }
 }
@@ -213,6 +233,80 @@ data class Key(val kid: String, val public: String, val current: Boolean, val cr
     }
 }
 
+/** A floating copy of a module, checked out by a machine. */
+data class Checkout(
+    val id: String,
+    val customer: String,
+    val module: String,
+    val who: String,
+    val machineId: String,
+    val since: Instant?,
+    val expires: Instant?,
+) {
+    companion object {
+        fun from(o: JSONObject) = Checkout(
+            id = o.optString("id"),
+            customer = o.optString("customer"),
+            module = o.optString("module"),
+            who = o.optString("who"),
+            machineId = o.optString("machine_id").ifBlank { o.optString("machine").take(12) },
+            since = o.time("since"),
+            expires = o.time("expires"),
+        )
+    }
+}
+
+/**
+ * A customer, such as a company: its members, the floating copies of
+ * modules its pools hold, and the copies checked out now.
+ */
+data class Customer(
+    val id: String,
+    val name: String,
+    val note: String,
+    val pools: Map<String, Int>,
+    val created: Instant?,
+    val members: List<User>,
+    val checkouts: List<Checkout>,
+) {
+    val title get() = name.ifBlank { id }
+    val people get() = members.filter { !it.service }
+    val services get() = members.filter { it.service }
+
+    companion object {
+        fun from(o: JSONObject) = Customer(
+            id = o.optString("id"),
+            name = o.optString("name"),
+            note = o.optString("note"),
+            pools = o.counts("pools"),
+            created = o.time("created"),
+            members = o.objects("members").map(User::from),
+            checkouts = o.objects("checkouts").map(Checkout::from),
+        )
+    }
+}
+
+/** A service account's one-time enrolment token, shown once. */
+data class EnrolToken(val token: String, val name: String, val expires: Instant?) {
+    companion object {
+        fun from(o: JSONObject) = EnrolToken(o.optString("token"), o.optString("name"), o.time("expires"))
+    }
+}
+
+/** Counts by module, as "sim=2, cad=1"; null if they don't read so. */
+fun parseCounts(text: String): Map<String, Int>? {
+    val out = linkedMapOf<String, Int>()
+    for (part in text.split(',', ' ', '\n').map { it.trim() }.filter { it.isNotEmpty() }) {
+        val (k, v) = part.split('=').takeIf { it.size == 2 } ?: return null
+        val n = v.trim().toIntOrNull() ?: return null
+        if (k.isBlank() || n < 0) return null
+        out[k.trim().lowercase()] = n
+    }
+    return out
+}
+
+fun formatCounts(m: Map<String, Int>) = m.entries.sortedBy { it.key }.joinToString(", ") { "${it.key}=${it.value}" }
+
 data class Me(val email: String, val operator: Boolean, val mayCreate: Boolean)
 
 data class Session(val token: String, val email: String, val expires: Instant?)
@@ -223,6 +317,9 @@ internal fun JSONObject.strings(name: String): List<String> {
     val a = optJSONArray(name) ?: return emptyList()
     return List(a.length()) { a.optString(it) }
 }
+
+internal fun JSONObject.counts(name: String): Map<String, Int> =
+    optJSONObject(name)?.let { d -> d.keys().asSequence().associateWith { d.optInt(it) } } ?: emptyMap()
 
 internal fun JSONObject.objects(name: String): List<JSONObject> = optJSONArray(name)?.objects() ?: emptyList()
 

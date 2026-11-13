@@ -42,6 +42,12 @@ whole list.
 - **Users**: search by email or purpose, sort by newest, last seen or name, see each user's grants and machines, grant
   modules (to anyone, even before they sign in), take grants back, revoke or restore a
   user or a single machine.
+- **Customers**: organisations, with the floating copies of modules their teams share.
+  See which copies are in use and by whom, free one, change a customer's copies, add
+  members, and add service accounts for their servers. A service account's page issues
+  its one-time enrolment token (shown once, to copy to the machine as
+  `LICENSEBOX_ENROL_TOKEN`); a user's page moves them into or out of a customer, and
+  shows which machine holds the seat of a module charged per machine.
 - **Activity**: a product's latest 200 events, by day, filtered to requests, access,
   sign-ins or admin work.
 - **Admins**: add and remove them. **Signing keys**: tap one to copy its public key.
@@ -71,11 +77,13 @@ Every action has a key, for phones with a built-in keyboard or one plugged in. *
 | --- | --- |
 | Everywhere | **J/K** or **N/P** next and previous, **Space** and **Shift+Space** page down and up, **T** and **B** top and bottom, **Enter** opens, **Esc** goes back |
 | Products | **1–9** open a product, **R** reloads |
-| A product | **R U E** open Requests, Users, Activity, **A**/**D** approve or decline the first waiting request, **S** search users, **G** grant, **Enter** opens the selected card |
+| A product | **R U E C** open Requests, Users, Activity, Customers, **A**/**D** approve or decline the first waiting request, **S** search users, **G** grant, **Enter** opens the selected card |
 | Requests | **A**/**D** approve or decline the selected (or first waiting) request, **Enter** opens its user, **R** reloads |
 | Users | **S** or **/** search, **O** changes the order, **G** grant, **Enter** opens a user, **R** reloads |
 | Activity | **F** changes the filter, **R** reloads |
-| A user | **G** grant, **S** machine seats, **X** revoke or restore, **Enter** on a grant takes it back, on a machine revokes or restores it |
+| Customers | **A** adds a customer, **Enter** opens one, **R** reloads |
+| A customer | **E** changes its floating copies, **M** adds a member, **V** a service account, **Enter** on a copy frees it, on a member opens them |
+| A user | **G** grant, **S** machine seats, **C** customer, **T** enrolment token (service accounts), **X** revoke or restore, **Enter** on a grant takes it back, on a machine revokes or restores it |
 | Dialogs | **Enter** confirms, **Esc** cancels, **1–9** tick modules |
 
 On keyboards where the digits share letter keys (W E R, S D F, Z X C, with Alt),

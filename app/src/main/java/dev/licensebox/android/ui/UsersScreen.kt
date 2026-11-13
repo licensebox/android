@@ -54,9 +54,13 @@ fun List<User>.ordered(o: UserOrder): List<User> = when (o) {
     UserOrder.Name -> sortedBy { it.email.lowercase() }
 }
 
-/** A user in a list: who, what for, what they hold, and how lately seen. */
+/**
+ * A user in a list: who, what for, what they hold, and how lately seen.
+ * A customer's member list has neither grants nor machines: [brief] shows
+ * who and what for alone.
+ */
 @Composable
-fun UserLine(u: User, onClick: () -> Unit) {
+fun UserLine(u: User, brief: Boolean = false, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp), verticalAlignment = Alignment.Top) {
         Avatar(u.email, dimmed = u.revoked)
         Spacer(Modifier.width(12.dp))
@@ -66,12 +70,18 @@ fun UserLine(u: User, onClick: () -> Unit) {
                     u.email, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                 )
+                if (u.service) {
+                    Spacer(Modifier.width(8.dp))
+                    Badge("service", MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
+                }
                 if (u.revoked) {
                     Spacer(Modifier.width(8.dp))
                     Badge("revoked", LocalExtra.current.warn, MaterialTheme.colorScheme.surface)
                 }
             }
+            if (u.customer.isNotBlank() && !brief) Muted(u.customer, maxLines = 1)
             if (u.purpose.isNotBlank()) Muted(u.purpose, maxLines = 1)
+            if (brief) return@Column
             val held = u.grants.filter { it.active() }
             if (held.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))

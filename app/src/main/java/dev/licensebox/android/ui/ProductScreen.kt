@@ -39,7 +39,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.licensebox.android.api.Customer
 import dev.licensebox.android.api.Event
+import dev.licensebox.android.api.formatCounts
 import dev.licensebox.android.api.Key
 import dev.licensebox.android.api.Product
 import dev.licensebox.android.api.Request
@@ -60,9 +62,10 @@ data class ProductPage(
     val events: List<Event>,
     val usage: Usage?,
     val keys: List<Key>,
+    val customers: List<Customer> = emptyList(),
 )
 
-private enum class Part { Requests, Figures, Users, Activity, Modules, Usage, Settings, Admins, Keys }
+private enum class Part { Requests, Figures, Users, Activity, Customers, Modules, Usage, Settings, Admins, Keys }
 
 /**
  * A product, as a page of cards: the requests waiting (answered here),
@@ -83,7 +86,8 @@ fun ProductScreen(model: AppModel, s: Screen.Product) {
             val ev = async { runCatching { api.events(id, 6) }.getOrElse { emptyList() } }
             val ug = async { runCatching { api.usage(id, 30) }.getOrNull() }
             val ks = async { runCatching { api.keys(id) }.getOrElse { emptyList() } }
-            ProductPage(p.await(), rq.await(), st.await(), us.await(), ev.await(), ug.await(), ks.await())
+            val cs = async { runCatching { api.customers(id) }.getOrElse { emptyList() } }
+            ProductPage(p.await(), rq.await(), st.await(), us.await(), ev.await(), ug.await(), ks.await(), cs.await())
         }
     }
     loader.Run(model::failed)
@@ -106,6 +110,7 @@ fun ProductScreen(model: AppModel, s: Screen.Product) {
         Part.Requests -> model.open(Screen.Requests(id))
         Part.Users, Part.Figures -> model.open(Screen.Users(id))
         Part.Activity -> model.open(Screen.Activity(id))
+        Part.Customers -> model.open(Screen.Customers(id))
         else -> Unit
     }
 
@@ -114,6 +119,7 @@ fun ProductScreen(model: AppModel, s: Screen.Product) {
             "r" -> { model.open(Screen.Requests(id)); true }
             "u" -> { model.open(Screen.Users(id)); true }
             "e" -> { model.open(Screen.Activity(id)); true }
+            "c" -> { model.open(Screen.Customers(id)); true }
             "s", "/" -> { model.open(Screen.Users(id, search = true)); true }
             "a" -> { waiting.firstOrNull()?.let { answers.approving = it }; true }
             "d" -> { waiting.firstOrNull()?.let { answers.declining = it }; true }
@@ -147,6 +153,7 @@ fun ProductScreen(model: AppModel, s: Screen.Product) {
                                 Part.Figures -> FiguresCard(pg.stats, selected) { model.open(Screen.Users(id)) }
                                 Part.Users -> UsersCard(pg, selected, model)
                                 Part.Activity -> ActivityCard(pg.events, selected) { model.open(Screen.Activity(id)) }
+                                Part.Customers -> CustomersCard(pg.customers, selected) { model.open(Screen.Customers(id)) }
                                 Part.Modules -> ModulesCard(p, pg.users, selected)
                                 Part.Usage -> pg.usage?.let { UsageCard(it, selected) }
                                 Part.Settings -> SettingsCard(p, selected)
@@ -266,6 +273,28 @@ private fun ActivityCard(events: List<Event>, selected: Boolean, onAll: () -> Un
 }
 
 @Composable
+private fun CustomersCard(customers: List<Customer>, selected: Boolean, onAll: () -> Unit) {
+    val inUse = customers.sumOf { it.checkouts.size }
+    SectionCard(
+        "Customers", count = customers.size, selected = selected,
+        action = if (inUse > 0) ({ Muted("$inUse ${if (inUse == 1) "copy" else "copies"} in use", Modifier.padding(end = 4.dp)) }) else null,
+        more = if (customers.isEmpty()) "Add a customer" else "All customers", moreKey = "C", onMore = onAll,
+    ) {
+        if (customers.isEmpty()) Muted("Organisations, with floating copies their teams share and service accounts for their servers.", Modifier.padding(bottom = 4.dp))
+        customers.sortedByDescending { it.checkouts.size }.take(3).forEachIndexed { i, c ->
+            if (i > 0) Divider()
+            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(c.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Muted(listOfNotNull(plural(c.members.size, "member"), c.pools.takeIf { it.isNotEmpty() }?.let { formatCounts(it) }).joinToString("  ·  "))
+                }
+                if (c.checkouts.isNotEmpty()) Muted("${c.checkouts.size} in use", Modifier.padding(top = 3.dp))
+            }
+        }
+    }
+}
+
+@Composable
 private fun ModulesCard(p: Product, users: List<User>, selected: Boolean) {
     SectionCard("Modules", count = p.modules.size, selected = selected) {
         p.modules.forEachIndexed { i, m ->
@@ -327,6 +356,8 @@ private fun SettingsCard(p: Product, selected: Boolean) {
         Facts(
             "Offline for" to "${if (p.leaseHours == 0) 24 else p.leaseHours} hours",
             "Machines per user" to if (p.machineLimit == 0) "no limit" else p.machineLimit.toString(),
+            "Seats apart" to if (p.moduleSeats.isEmpty()) "none" else formatCounts(p.moduleSeats),
+            "Heartbeat" to if (p.heartbeat) "every ${p.heartbeatInterval} s, ${p.heartbeatGrace} s grace" else "off",
             "Terms" to if (p.terms == 0) "none" else "version ${p.terms}" + if (p.termsUrl.isNotBlank()) "\n${p.termsUrl}" else "",
             "Contact" to p.contact.ifBlank { "–" },
             "Usage counts" to if (p.usage) "on" else "off",

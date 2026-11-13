@@ -1,6 +1,9 @@
 package dev.licensebox.android
 
 import dev.licensebox.android.api.AdminApi
+import dev.licensebox.android.api.Customer
+import dev.licensebox.android.api.formatCounts
+import dev.licensebox.android.api.parseCounts
 import dev.licensebox.android.api.Product
 import dev.licensebox.android.api.Request
 import dev.licensebox.android.api.User
@@ -101,5 +104,49 @@ class ModelsTest {
         assertEquals("3, for this user", user(""","machine_limit":3""").seats(1))
         assertEquals(0, user(""","machine_limit":0""").machineLimit)
         assertEquals("no limit, for this user", user(""","machine_limit":0""").seats(1))
+    }
+
+    @Test
+    fun customerAsTheServerWritesIt() {
+        val c = Customer.from(
+            JSONObject(
+                """{"id":"acme","product":"myapp","name":"Acme Ltd","pools":{"sim":2},"created":"2026-11-13T10:00:00Z",
+                "members":[{"user":"u_1","email":"ada@example.org","customer":"acme"},
+                           {"user":"u_2","email":"","customer":"acme","service":true,"name":"build-1"}],
+                "checkouts":[{"id":"co_1","customer":"acme","module":"sim","user":"u_1","machine":"abcdefghijklmnop",
+                              "since":"2026-11-13T10:00:00Z","expires":"2026-11-13T10:15:00Z","who":"ada@example.org","machine_id":"m-abc"}]}""",
+            ),
+        )
+        assertEquals("Acme Ltd", c.title)
+        assertEquals(mapOf("sim" to 2), c.pools)
+        assertEquals(listOf("ada@example.org"), c.people.map { it.email })
+        // A service account is named by its name, where admin calls take an email.
+        assertEquals(listOf("build-1"), c.services.map { it.email })
+        assertEquals("m-abc", c.checkouts.single().machineId)
+        assertEquals("ada@example.org", c.checkouts.single().who)
+    }
+
+    @Test
+    fun heartbeatAndSeatsApart() {
+        val p = Product.from(JSONObject("""{"id":"a","heartbeat":{"interval_seconds":300,"grace_seconds":900},"module_seats":{"server":1}}"""))
+        assertTrue(p.heartbeat)
+        assertEquals(mapOf("server" to 1), p.moduleSeats)
+        assertFalse(Product.from(JSONObject("""{"id":"a","heartbeat":{}}""")).heartbeat)
+    }
+
+    @Test
+    fun countsAsTyped() {
+        assertEquals(mapOf("sim" to 2, "cad" to 1), parseCounts("sim=2, CAD=1"))
+        assertEquals(emptyMap<String, Int>(), parseCounts("  "))
+        assertNull(parseCounts("sim"))
+        assertNull(parseCounts("sim=x"))
+        assertNull(parseCounts("sim=-1"))
+        assertEquals("cad=1, sim=2", formatCounts(mapOf("sim" to 2, "cad" to 1)))
+    }
+
+    @Test
+    fun customerBodyNamesItsPools() {
+        val b = AdminApi("", null).customerBody("acme", "Acme", "", mapOf("sim" to 0))
+        assertEquals(0, b.getJSONObject("pools").getInt("sim"))
     }
 }

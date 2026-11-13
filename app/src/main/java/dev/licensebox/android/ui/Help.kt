@@ -31,7 +31,7 @@ private val everywhere = listOf(
 private fun forScreen(s: Screen): Pair<String, List<Pair<String, String>>> = when (s) {
     Screen.Products -> "Products" to listOf("1 – 9" to "open that product", "R" to "reload")
     is Screen.Product -> "A product" to listOf(
-        "R  U  E" to "all requests, users, activity",
+        "R  U  E  C" to "all requests, users, activity, customers",
         "A, D" to "approve, decline the first request waiting",
         "S  or  /" to "search users",
         "G" to "grant modules to anyone",
@@ -53,12 +53,26 @@ private fun forScreen(s: Screen): Pair<String, List<Pair<String, String>>> = whe
         "F" to "next filter",
         "R" to "reload",
     )
+    is Screen.Customers -> "Customers" to listOf(
+        "A" to "add a customer",
+        "Enter" to "open the customer",
+        "R" to "reload",
+    )
+    is Screen.Customer -> "A customer" to listOf(
+        "E" to "change its floating copies",
+        "M, V" to "add a member, a service account",
+        "Enter on a copy" to "free it",
+        "Enter on a member" to "open them",
+        "R" to "reload",
+    )
     is Screen.User -> "A user" to listOf(
         "G" to "grant modules",
         "X" to "revoke, or restore",
         "Enter on a grant" to "take it back",
         "Enter on a machine" to "revoke or restore it",
         "S" to "set this user's machine seats",
+        "C" to "move them to a customer",
+        "T" to "issue an enrolment token (service accounts)",
         "R" to "reload",
     )
 }
